@@ -50,7 +50,7 @@ export const Route = createRootRoute({
     ],
   }),
   errorComponent: (props) => (
-    <ClerkProvider>
+    <ClerkProvider publishableKey={import.meta.env.VITE_CLERK_PUBLISHABLE_KEY}>
       <RootDocument>
         <DefaultCatchBoundary {...props} />
       </RootDocument>
@@ -62,7 +62,7 @@ export const Route = createRootRoute({
 
 function RootComponent() {
   return (
-    <ClerkProvider>
+    <ClerkProvider publishableKey={import.meta.env.VITE_CLERK_PUBLISHABLE_KEY}>
       <RootDocument>
         <Outlet />
       </RootDocument>
