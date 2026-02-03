@@ -1,3 +1,10 @@
+import {
+  SignInButton,
+  SignedIn,
+  SignedOut,
+  UserButton,
+  useAuth,
+} from '@clerk/tanstack-react-start'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { GeminiLiveClient, type ChatMessage } from '~/lib/gemini'
 import { getApiConfig } from '~/server/api'
@@ -11,6 +18,7 @@ interface ConnectionError {
 }
 
 export function VoiceChat() {
+  const { isSignedIn, isLoaded } = useAuth()
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [inputText, setInputText] = useState('')
   const [status, setStatus] = useState<ConnectionStatus>('disconnected')
@@ -33,7 +41,6 @@ export function VoiceChat() {
   const parseError = (error: Error | string): ConnectionError => {
     const message = typeof error === 'string' ? error : error.message
 
-    // API key errors
     if (message.includes('API_KEY') || message.includes('apiKey') || message.includes('environment variable')) {
       return {
         message: 'API Key Not Configured',
@@ -42,7 +49,6 @@ export function VoiceChat() {
       }
     }
 
-    // WebSocket/connection errors
     if (message.includes('WebSocket') || message.includes('connection') || message.includes('network')) {
       return {
         message: 'Connection Failed',
@@ -51,7 +57,6 @@ export function VoiceChat() {
       }
     }
 
-    // Authentication errors
     if (message.includes('401') || message.includes('403') || message.includes('unauthorized') || message.includes('forbidden')) {
       return {
         message: 'Authentication Error',
@@ -60,7 +65,6 @@ export function VoiceChat() {
       }
     }
 
-    // Rate limiting
     if (message.includes('429') || message.includes('rate') || message.includes('quota')) {
       return {
         message: 'Rate Limited',
@@ -69,7 +73,6 @@ export function VoiceChat() {
       }
     }
 
-    // Model errors
     if (message.includes('model') || message.includes('not found') || message.includes('unavailable')) {
       return {
         message: 'Service Unavailable',
@@ -78,7 +81,6 @@ export function VoiceChat() {
       }
     }
 
-    // Default error
     return {
       message: 'Connection Error',
       details: message || 'An unexpected error occurred. Please try again.',
@@ -87,6 +89,8 @@ export function VoiceChat() {
   }
 
   const connect = useCallback(async () => {
+    if (!isSignedIn) return
+
     try {
       setConnectionError(null)
       setStatus('connecting')
@@ -106,7 +110,6 @@ export function VoiceChat() {
           setRetryCount(0)
           setConnectionError(null)
         } else if (newStatus === 'disconnected') {
-          // Check if this was an unexpected disconnect
           if (status === 'connected') {
             setConnectionError({
               message: 'Connection Lost',
@@ -132,7 +135,7 @@ export function VoiceChat() {
       setConnectionError(parsedError)
       setStatus('error')
     }
-  }, [status])
+  }, [status, isSignedIn])
 
   const disconnect = useCallback(() => {
     if (clientRef.current) {
@@ -196,6 +199,16 @@ export function VoiceChat() {
     }
   }
 
+  // Show loading state while Clerk loads
+  if (!isLoaded) {
+    return (
+      <div className="flex flex-col h-[100dvh] bg-slate-900 text-white items-center justify-center">
+        <LoadingSpinner />
+        <p className="mt-4 text-slate-400">Loading...</p>
+      </div>
+    )
+  }
+
   return (
     <div className="flex flex-col h-[100dvh] bg-slate-900 text-white">
       {/* Navigation Bar */}
@@ -206,172 +219,198 @@ export function VoiceChat() {
           </div>
           <h1 className="text-lg font-semibold">Voice Chat AI</h1>
         </div>
-        
+
         <div className="flex items-center gap-4">
           <StatusIndicator status={status} />
-          
-          {/* Auth placeholder - will be replaced with Clerk */}
-          <button
-            className="px-3 py-1.5 text-sm bg-slate-700 hover:bg-slate-600 rounded-lg transition-colors"
-            onClick={() => alert('Auth coming soon!')}
-          >
-            Sign In
-          </button>
+
+          <SignedIn>
+            <UserButton
+              appearance={{
+                elements: {
+                  avatarBox: 'w-8 h-8',
+                },
+              }}
+            />
+          </SignedIn>
+          <SignedOut>
+            <SignInButton mode="modal">
+              <button className="px-4 py-1.5 text-sm bg-indigo-600 hover:bg-indigo-700 rounded-lg font-medium transition-colors">
+                Sign In
+              </button>
+            </SignInButton>
+          </SignedOut>
         </div>
       </nav>
 
-      {/* Connection Controls */}
-      <div className="px-4 py-2 bg-slate-800/50 border-b border-slate-700/50 flex items-center justify-between">
-        <div className="text-sm text-slate-400">
-          {status === 'connected' && '🟢 Ready to chat'}
-          {status === 'connecting' && '🟡 Establishing connection...'}
-          {status === 'disconnected' && '⚪ Not connected'}
-          {status === 'error' && '🔴 Connection error'}
-        </div>
-        
-        <div className="flex items-center gap-2">
-          {(status === 'disconnected' || status === 'error') && (
-            <button
-              onClick={connectionError?.recoverable === false ? undefined : (retryCount > 0 ? retry : connect)}
-              disabled={connectionError?.recoverable === false}
-              className={`px-4 py-1.5 text-sm rounded-lg font-medium transition-colors ${
-                connectionError?.recoverable === false
-                  ? 'bg-slate-600 text-slate-400 cursor-not-allowed'
-                  : 'bg-indigo-600 hover:bg-indigo-700 text-white'
-              }`}
-            >
-              {retryCount > 0 ? `Retry (${retryCount})` : 'Connect'}
-            </button>
-          )}
-          {status === 'connected' && (
-            <button
-              onClick={disconnect}
-              className="px-4 py-1.5 text-sm bg-red-600/20 hover:bg-red-600/30 text-red-400 rounded-lg font-medium transition-colors"
-            >
-              Disconnect
-            </button>
-          )}
-          {status === 'connecting' && (
-            <button
-              onClick={disconnect}
-              className="px-4 py-1.5 text-sm bg-slate-600 hover:bg-slate-500 rounded-lg font-medium transition-colors"
-            >
-              Cancel
-            </button>
-          )}
-        </div>
-      </div>
+      {/* Auth-gated content */}
+      <SignedIn>
+        {/* Connection Controls */}
+        <div className="px-4 py-2 bg-slate-800/50 border-b border-slate-700/50 flex items-center justify-between">
+          <div className="text-sm text-slate-400">
+            {status === 'connected' && '🟢 Ready to chat'}
+            {status === 'connecting' && '🟡 Establishing connection...'}
+            {status === 'disconnected' && '⚪ Not connected'}
+            {status === 'error' && '🔴 Connection error'}
+          </div>
 
-      {/* Error Banner */}
-      {connectionError && (
-        <div className={`px-4 py-3 ${connectionError.recoverable ? 'bg-amber-900/30' : 'bg-red-900/30'} border-b ${connectionError.recoverable ? 'border-amber-800/50' : 'border-red-800/50'}`}>
-          <div className="flex items-start gap-3">
-            <div className={`mt-0.5 ${connectionError.recoverable ? 'text-amber-400' : 'text-red-400'}`}>
-              {connectionError.recoverable ? (
-                <WarningIcon />
-              ) : (
-                <ErrorIcon />
-              )}
-            </div>
-            <div className="flex-1">
-              <p className={`font-medium ${connectionError.recoverable ? 'text-amber-200' : 'text-red-200'}`}>
-                {connectionError.message}
-              </p>
-              {connectionError.details && (
-                <p className={`text-sm mt-1 ${connectionError.recoverable ? 'text-amber-300/70' : 'text-red-300/70'}`}>
-                  {connectionError.details}
-                </p>
-              )}
-            </div>
-            <button
-              onClick={() => setConnectionError(null)}
-              className={`p-1 rounded hover:bg-white/10 ${connectionError.recoverable ? 'text-amber-400' : 'text-red-400'}`}
-            >
-              <CloseIcon />
-            </button>
+          <div className="flex items-center gap-2">
+            {(status === 'disconnected' || status === 'error') && (
+              <button
+                onClick={connectionError?.recoverable === false ? undefined : retryCount > 0 ? retry : connect}
+                disabled={connectionError?.recoverable === false}
+                className={`px-4 py-1.5 text-sm rounded-lg font-medium transition-colors ${
+                  connectionError?.recoverable === false
+                    ? 'bg-slate-600 text-slate-400 cursor-not-allowed'
+                    : 'bg-indigo-600 hover:bg-indigo-700 text-white'
+                }`}
+              >
+                {retryCount > 0 ? `Retry (${retryCount})` : 'Connect'}
+              </button>
+            )}
+            {status === 'connected' && (
+              <button
+                onClick={disconnect}
+                className="px-4 py-1.5 text-sm bg-red-600/20 hover:bg-red-600/30 text-red-400 rounded-lg font-medium transition-colors"
+              >
+                Disconnect
+              </button>
+            )}
+            {status === 'connecting' && (
+              <button
+                onClick={disconnect}
+                className="px-4 py-1.5 text-sm bg-slate-600 hover:bg-slate-500 rounded-lg font-medium transition-colors"
+              >
+                Cancel
+              </button>
+            )}
           </div>
         </div>
-      )}
 
-      {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
-        {status === 'disconnected' && messages.length === 0 && !connectionError && (
-          <div className="text-center text-slate-400 mt-8">
-            <div className="w-16 h-16 mx-auto mb-4 bg-slate-800 rounded-full flex items-center justify-center">
-              <MicIcon isRecording={false} />
-            </div>
-            <p className="text-lg font-medium text-slate-300">Welcome to Voice Chat AI</p>
-            <p className="mt-2 text-sm">Click "Connect" to start a conversation</p>
-          </div>
-        )}
-
-        {status === 'connecting' && messages.length === 0 && (
-          <div className="text-center text-slate-400 mt-8">
-            <div className="w-16 h-16 mx-auto mb-4 bg-slate-800 rounded-full flex items-center justify-center animate-pulse">
-              <LoadingSpinner />
-            </div>
-            <p className="text-lg font-medium text-slate-300">Connecting...</p>
-            <p className="mt-2 text-sm">Setting up your AI conversation</p>
-          </div>
-        )}
-
-        {status === 'connected' && messages.length === 0 && (
-          <div className="text-center text-slate-400 mt-8">
-            <p className="text-lg">👋 Hi there!</p>
-            <p className="mt-2">Type a message or hold the mic button to talk.</p>
-          </div>
-        )}
-
-        {messages.map((message) => (
-          <MessageBubble key={message.id} message={message} />
-        ))}
-        <div ref={messagesEndRef} />
-      </div>
-
-      {/* Input Area */}
-      <div className="px-4 py-4 bg-slate-800 border-t border-slate-700">
-        <div className="flex items-center gap-3 max-w-4xl mx-auto">
-          {/* Mic Button */}
-          <button
-            onClick={toggleRecording}
-            disabled={status !== 'connected'}
-            className={`p-4 rounded-full transition-all ${
-              isRecording
-                ? 'bg-red-600 hover:bg-red-700 animate-pulse'
-                : status === 'connected'
-                  ? 'bg-indigo-600 hover:bg-indigo-700'
-                  : 'bg-slate-600 cursor-not-allowed'
-            }`}
-            title={isRecording ? 'Stop recording' : 'Start recording'}
+        {/* Error Banner */}
+        {connectionError && (
+          <div
+            className={`px-4 py-3 ${connectionError.recoverable ? 'bg-amber-900/30' : 'bg-red-900/30'} border-b ${connectionError.recoverable ? 'border-amber-800/50' : 'border-red-800/50'}`}
           >
-            <MicIcon isRecording={isRecording} />
-          </button>
+            <div className="flex items-start gap-3">
+              <div className={`mt-0.5 ${connectionError.recoverable ? 'text-amber-400' : 'text-red-400'}`}>
+                {connectionError.recoverable ? <WarningIcon /> : <ErrorIcon />}
+              </div>
+              <div className="flex-1">
+                <p className={`font-medium ${connectionError.recoverable ? 'text-amber-200' : 'text-red-200'}`}>
+                  {connectionError.message}
+                </p>
+                {connectionError.details && (
+                  <p className={`text-sm mt-1 ${connectionError.recoverable ? 'text-amber-300/70' : 'text-red-300/70'}`}>
+                    {connectionError.details}
+                  </p>
+                )}
+              </div>
+              <button
+                onClick={() => setConnectionError(null)}
+                className={`p-1 rounded hover:bg-white/10 ${connectionError.recoverable ? 'text-amber-400' : 'text-red-400'}`}
+              >
+                <CloseIcon />
+              </button>
+            </div>
+          </div>
+        )}
 
-          {/* Text Input */}
-          <div className="flex-1 flex items-center gap-2 bg-slate-700 rounded-lg px-4 py-2">
-            <input
-              type="text"
-              value={inputText}
-              onChange={(e) => setInputText(e.target.value)}
-              onKeyDown={handleKeyPress}
-              placeholder={status === 'connected' ? 'Type a message...' : 'Connect to start chatting'}
-              disabled={status !== 'connected'}
-              className="flex-1 bg-transparent outline-none text-white placeholder-slate-400"
-            />
+        {/* Messages */}
+        <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
+          {status === 'disconnected' && messages.length === 0 && !connectionError && (
+            <div className="text-center text-slate-400 mt-8">
+              <div className="w-16 h-16 mx-auto mb-4 bg-slate-800 rounded-full flex items-center justify-center">
+                <MicIcon isRecording={false} />
+              </div>
+              <p className="text-lg font-medium text-slate-300">Ready to Chat</p>
+              <p className="mt-2 text-sm">Click "Connect" to start a conversation</p>
+            </div>
+          )}
+
+          {status === 'connecting' && messages.length === 0 && (
+            <div className="text-center text-slate-400 mt-8">
+              <div className="w-16 h-16 mx-auto mb-4 bg-slate-800 rounded-full flex items-center justify-center animate-pulse">
+                <LoadingSpinner />
+              </div>
+              <p className="text-lg font-medium text-slate-300">Connecting...</p>
+              <p className="mt-2 text-sm">Setting up your AI conversation</p>
+            </div>
+          )}
+
+          {status === 'connected' && messages.length === 0 && (
+            <div className="text-center text-slate-400 mt-8">
+              <p className="text-lg">👋 Hi there!</p>
+              <p className="mt-2">Type a message or hold the mic button to talk.</p>
+            </div>
+          )}
+
+          {messages.map((message) => (
+            <MessageBubble key={message.id} message={message} />
+          ))}
+          <div ref={messagesEndRef} />
+        </div>
+
+        {/* Input Area */}
+        <div className="px-4 py-4 bg-slate-800 border-t border-slate-700">
+          <div className="flex items-center gap-3 max-w-4xl mx-auto">
             <button
-              onClick={sendMessage}
-              disabled={!inputText.trim() || status !== 'connected'}
-              className={`p-2 rounded-lg transition-colors ${
-                inputText.trim() && status === 'connected'
-                  ? 'text-indigo-400 hover:bg-slate-600'
-                  : 'text-slate-500 cursor-not-allowed'
+              onClick={toggleRecording}
+              disabled={status !== 'connected'}
+              className={`p-4 rounded-full transition-all ${
+                isRecording
+                  ? 'bg-red-600 hover:bg-red-700 animate-pulse'
+                  : status === 'connected'
+                    ? 'bg-indigo-600 hover:bg-indigo-700'
+                    : 'bg-slate-600 cursor-not-allowed'
               }`}
+              title={isRecording ? 'Stop recording' : 'Start recording'}
             >
-              <SendIcon />
+              <MicIcon isRecording={isRecording} />
             </button>
+
+            <div className="flex-1 flex items-center gap-2 bg-slate-700 rounded-lg px-4 py-2">
+              <input
+                type="text"
+                value={inputText}
+                onChange={(e) => setInputText(e.target.value)}
+                onKeyDown={handleKeyPress}
+                placeholder={status === 'connected' ? 'Type a message...' : 'Connect to start chatting'}
+                disabled={status !== 'connected'}
+                className="flex-1 bg-transparent outline-none text-white placeholder-slate-400"
+              />
+              <button
+                onClick={sendMessage}
+                disabled={!inputText.trim() || status !== 'connected'}
+                className={`p-2 rounded-lg transition-colors ${
+                  inputText.trim() && status === 'connected'
+                    ? 'text-indigo-400 hover:bg-slate-600'
+                    : 'text-slate-500 cursor-not-allowed'
+                }`}
+              >
+                <SendIcon />
+              </button>
+            </div>
           </div>
         </div>
-      </div>
+      </SignedIn>
+
+      {/* Sign-in prompt for unauthenticated users */}
+      <SignedOut>
+        <div className="flex-1 flex flex-col items-center justify-center p-8">
+          <div className="w-20 h-20 mb-6 bg-slate-800 rounded-full flex items-center justify-center">
+            <MicIcon isRecording={false} />
+          </div>
+          <h2 className="text-2xl font-bold text-white mb-2">Welcome to Voice Chat AI</h2>
+          <p className="text-slate-400 text-center mb-6 max-w-md">
+            Have natural conversations with AI using your voice or text. Sign in to get started.
+          </p>
+          <SignInButton mode="modal">
+            <button className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 rounded-lg font-medium transition-colors">
+              Sign In to Start Chatting
+            </button>
+          </SignInButton>
+        </div>
+      </SignedOut>
 
       {/* PWA Install Prompt */}
       <InstallPrompt />
@@ -438,7 +477,11 @@ function SendIcon() {
 function WarningIcon() {
   return (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
-      <path fillRule="evenodd" d="M9.401 3.003c1.155-2 4.043-2 5.197 0l7.355 12.748c1.154 2-.29 4.5-2.599 4.5H4.645c-2.309 0-3.752-2.5-2.598-4.5L9.4 3.003zM12 8.25a.75.75 0 01.75.75v3.75a.75.75 0 01-1.5 0V9a.75.75 0 01.75-.75zm0 8.25a.75.75 0 100-1.5.75.75 0 000 1.5z" clipRule="evenodd" />
+      <path
+        fillRule="evenodd"
+        d="M9.401 3.003c1.155-2 4.043-2 5.197 0l7.355 12.748c1.154 2-.29 4.5-2.599 4.5H4.645c-2.309 0-3.752-2.5-2.598-4.5L9.4 3.003zM12 8.25a.75.75 0 01.75.75v3.75a.75.75 0 01-1.5 0V9a.75.75 0 01.75-.75zm0 8.25a.75.75 0 100-1.5.75.75 0 000 1.5z"
+        clipRule="evenodd"
+      />
     </svg>
   )
 }
@@ -446,7 +489,11 @@ function WarningIcon() {
 function ErrorIcon() {
   return (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
-      <path fillRule="evenodd" d="M12 2.25c-5.385 0-9.75 4.365-9.75 9.75s4.365 9.75 9.75 9.75 9.75-4.365 9.75-9.75S17.385 2.25 12 2.25zm-1.72 6.97a.75.75 0 10-1.06 1.06L10.94 12l-1.72 1.72a.75.75 0 101.06 1.06L12 13.06l1.72 1.72a.75.75 0 101.06-1.06L13.06 12l1.72-1.72a.75.75 0 10-1.06-1.06L12 10.94l-1.72-1.72z" clipRule="evenodd" />
+      <path
+        fillRule="evenodd"
+        d="M12 2.25c-5.385 0-9.75 4.365-9.75 9.75s4.365 9.75 9.75 9.75 9.75-4.365 9.75-9.75S17.385 2.25 12 2.25zm-1.72 6.97a.75.75 0 10-1.06 1.06L10.94 12l-1.72 1.72a.75.75 0 101.06 1.06L12 13.06l1.72 1.72a.75.75 0 101.06-1.06L13.06 12l1.72-1.72a.75.75 0 10-1.06-1.06L12 10.94l-1.72-1.72z"
+        clipRule="evenodd"
+      />
     </svg>
   )
 }
@@ -454,7 +501,11 @@ function ErrorIcon() {
 function CloseIcon() {
   return (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
-      <path fillRule="evenodd" d="M5.47 5.47a.75.75 0 011.06 0L12 10.94l5.47-5.47a.75.75 0 111.06 1.06L13.06 12l5.47 5.47a.75.75 0 11-1.06 1.06L12 13.06l-5.47 5.47a.75.75 0 01-1.06-1.06L10.94 12 5.47 6.53a.75.75 0 010-1.06z" clipRule="evenodd" />
+      <path
+        fillRule="evenodd"
+        d="M5.47 5.47a.75.75 0 011.06 0L12 10.94l5.47-5.47a.75.75 0 111.06 1.06L13.06 12l5.47 5.47a.75.75 0 11-1.06 1.06L12 13.06l-5.47 5.47a.75.75 0 01-1.06-1.06L10.94 12 5.47 6.53a.75.75 0 010-1.06z"
+        clipRule="evenodd"
+      />
     </svg>
   )
 }
@@ -463,7 +514,11 @@ function LoadingSpinner() {
   return (
     <svg className="w-8 h-8 animate-spin text-indigo-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+      <path
+        className="opacity-75"
+        fill="currentColor"
+        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+      ></path>
     </svg>
   )
 }

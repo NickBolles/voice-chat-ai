@@ -12,6 +12,7 @@
     "start": "node .output/server/index.mjs"
   },
   "dependencies": {
+    "@clerk/tanstack-react-start": "^0.28.1",
     "@google/genai": "^1.0.1",
     "@tanstack/react-router": "^1.158.0",
     "@tanstack/react-router-devtools": "^1.158.0",
