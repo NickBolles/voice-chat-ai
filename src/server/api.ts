@@ -1,4 +1,5 @@
 import { createServerFn } from '@tanstack/react-start'
+import { z } from 'zod'
 
 // Server function to get API key securely
 // In production, you might also validate sessions, rate limit, etc.
@@ -14,14 +15,24 @@ export const getApiConfig = createServerFn().handler(async () => {
   }
 })
 
+// Schema for push subscription
+const pushSubscriptionSchema = z.object({
+  subscription: z.object({
+    endpoint: z.string(),
+    keys: z.object({
+      p256dh: z.string(),
+      auth: z.string(),
+    }).optional(),
+  }),
+})
+
 // Server function to request notification permission
 // and subscribe to push notifications
 export const subscribePush = createServerFn()
-  .validator((data: { subscription: PushSubscriptionJSON }) => data)
-  .handler(async ({ data }) => {
+  .handler(async (ctx) => {
+    // Parse the input - for now just accept it
     // In a real app, store this subscription in a database
-    // For now, just log it
-    console.log('Push subscription received:', data.subscription)
+    console.log('Push subscription received')
 
     return { success: true }
   })
