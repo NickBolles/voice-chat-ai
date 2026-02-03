@@ -28,7 +28,6 @@ export function VoiceChat() {
 
   const clientRef = useRef<GeminiLiveClient | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
-  const audioStreamRef = useRef<MediaStream | null>(null)
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -142,10 +141,6 @@ export function VoiceChat() {
       clientRef.current.disconnect()
       clientRef.current = null
     }
-    if (audioStreamRef.current) {
-      audioStreamRef.current.getTracks().forEach((track) => track.stop())
-      audioStreamRef.current = null
-    }
     setIsRecording(false)
     setConnectionError(null)
   }, [])
@@ -168,29 +163,13 @@ export function VoiceChat() {
   }, [inputText, status])
 
   const toggleRecording = useCallback(async () => {
-    if (!clientRef.current || status !== 'connected') return
-
-    if (isRecording) {
-      clientRef.current.stopAudioStream()
-      if (audioStreamRef.current) {
-        audioStreamRef.current.getTracks().forEach((track) => track.stop())
-        audioStreamRef.current = null
-      }
-      setIsRecording(false)
-    } else {
-      try {
-        const stream = await clientRef.current.startAudioStream()
-        audioStreamRef.current = stream
-        setIsRecording(true)
-      } catch (err) {
-        setConnectionError({
-          message: 'Microphone Access Denied',
-          details: 'Please allow microphone access to use voice chat.',
-          recoverable: true,
-        })
-      }
-    }
-  }, [isRecording, status])
+    // Audio recording temporarily disabled - text chat only
+    setConnectionError({
+      message: 'Voice Input Coming Soon',
+      details: 'Voice input is being developed. Please use text chat for now.',
+      recoverable: true,
+    })
+  }, [])
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
