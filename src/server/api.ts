@@ -2,37 +2,27 @@ import { createServerFn } from '@tanstack/react-start'
 import { z } from 'zod'
 
 // Server function to get API key securely
-// In production, you might also validate sessions, rate limit, etc.
 export const getApiConfig = createServerFn().handler(async () => {
+  console.log('[Server] getApiConfig called')
+  
   const apiKey = process.env.GEMINI_API_KEY
-
+  
   if (!apiKey) {
+    console.error('[Server] GEMINI_API_KEY is not set!')
     throw new Error('GEMINI_API_KEY environment variable is not set')
   }
-
+  
+  // Log that we have a key (but not the key itself!)
+  console.log('[Server] GEMINI_API_KEY found, length:', apiKey.length)
+  console.log('[Server] Key prefix:', apiKey.substring(0, 10) + '...')
+  
   return {
     apiKey,
   }
 })
 
-// Schema for push subscription
-const pushSubscriptionSchema = z.object({
-  subscription: z.object({
-    endpoint: z.string(),
-    keys: z.object({
-      p256dh: z.string(),
-      auth: z.string(),
-    }).optional(),
-  }),
+// Server function for push subscription (placeholder)
+export const subscribePush = createServerFn().handler(async () => {
+  console.log('[Server] Push subscription received')
+  return { success: true }
 })
-
-// Server function to request notification permission
-// and subscribe to push notifications
-export const subscribePush = createServerFn()
-  .handler(async (ctx) => {
-    // Parse the input - for now just accept it
-    // In a real app, store this subscription in a database
-    console.log('Push subscription received')
-
-    return { success: true }
-  })
