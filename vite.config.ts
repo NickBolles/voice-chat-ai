@@ -1,14 +1,25 @@
-import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
 import { tanstackStart } from '@tanstack/react-start/plugin/vite'
+import { defineConfig } from 'vite'
+import tsConfigPaths from 'vite-tsconfig-paths'
+import viteReact from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
+import { nitro } from 'nitro/vite'
 import { VitePWA } from 'vite-plugin-pwa'
 
 export default defineConfig({
+  server: {
+    port: 3000,
+  },
   plugins: [
-    tanstackStart(),
-    react(),
     tailwindcss(),
+    tsConfigPaths({
+      projects: ['./tsconfig.json'],
+    }),
+    tanstackStart({
+      srcDirectory: 'src',
+    }),
+    viteReact(),
+    nitro(),
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg', 'favicon.ico', 'apple-touch-icon.png'],
@@ -55,7 +66,4 @@ export default defineConfig({
       },
     }),
   ],
-  server: {
-    port: 3000,
-  },
 })

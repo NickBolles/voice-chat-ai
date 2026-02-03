@@ -1,20 +1,31 @@
-node_modules
+# Dependencies
+node_modules/
+pnpm-lock.yaml
 package-lock.json
-yarn.lock
 
-.DS_Store
-.cache
+# Build output
+.output/
+dist/
+
+# Environment variables
 .env
-.vercel
-.output
-.nitro
-/build/
-/api/
-/server/build
-/public/build# Sentry Config File
-.env.sentry-build-plugin
-/test-results/
-/playwright-report/
-/blob-report/
-/playwright/.cache/
-.tanstack
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Vite
+*.local
+.vite/
+
+# PWA generated
+dev-dist/
+
+# Logs
+*.log
